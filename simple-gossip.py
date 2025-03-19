@@ -404,7 +404,7 @@ def create_output_dir():
     """Create output directory structure for experiment results."""
     # Create base output directory with timestamp
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    base_dir = f"federated_learning_results_{timestamp}"
+    base_dir = f"outputs/federated_learning_results_{timestamp}"
     os.makedirs(base_dir, exist_ok=True)
     
     # Create readme file
