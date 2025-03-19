@@ -10,6 +10,9 @@ import networkx as nx
 import random
 import time
 import copy
+import os
+import datetime
+import json
 
 # Set random seed for reproducibility
 torch.manual_seed(42)
@@ -149,12 +152,13 @@ class Node:
 
 
 class GossipFederatedLearning:
-    def __init__(self, num_nodes, connectivity_prob=0.3, comm_prob=0.5, device='cpu'):
+    def __init__(self, num_nodes, connectivity_prob=0.3, comm_prob=0.5, device='cpu', output_dir='results'):
         """Initialize the decentralized federated learning system."""
         self.num_nodes = num_nodes
         self.connectivity_prob = connectivity_prob
         self.comm_prob = comm_prob
         self.device = device
+        self.output_dir = output_dir
         self.nodes = []
         self.network = None
         self.total_comm_cost = 0
@@ -298,7 +302,7 @@ class GossipFederatedLearning:
         
         return np.mean(test_losses), np.mean(test_accuracies), np.std(test_accuracies)
     
-    def visualize_network(self):
+    def visualize_network(self, save_path):
         """Visualize the network structure."""
         plt.figure(figsize=(10, 8))
         pos = nx.spring_layout(self.network, seed=42)
@@ -306,9 +310,10 @@ class GossipFederatedLearning:
                 node_size=500, edge_color='gray')
         plt.title("Decentralized Network Structure")
         plt.tight_layout()
-        return plt
+        plt.savefig(save_path)
+        plt.close()
     
-    def plot_convergence(self):
+    def plot_convergence(self, save_path):
         """Plot the convergence of loss and accuracy over rounds."""
         plt.figure(figsize=(15, 5))
         
@@ -331,9 +336,10 @@ class GossipFederatedLearning:
         plt.ylabel("Communication Cost (KB)")
         
         plt.tight_layout()
-        return plt
+        plt.savefig(save_path)
+        plt.close()
     
-    def compare_models(self):
+    def compare_models(self, save_path):
         """Compare the performance of different nodes."""
         plt.figure(figsize=(10, 5))
         
@@ -354,12 +360,90 @@ class GossipFederatedLearning:
         plt.legend()
         
         plt.tight_layout()
-        return plt
+        plt.savefig(save_path)
+        plt.close()
+    
+    def save_results(self, exp_dir):
+        """Save experiment results to files."""
+        results = {
+            'global_loss': self.global_loss_history,
+            'global_accuracy': self.global_accuracy_history,
+            'round_comm_costs': self.round_comm_costs,
+            'total_comm_cost': self.total_comm_cost,
+            'network_edges': list(self.network.edges()),
+            'nodes_data': [
+                {
+                    'node_id': node.node_id,
+                    'neighbors': node.neighbors,
+                    'loss_history': node.loss_history,
+                    'accuracy_history': node.accuracy_history,
+                    'comm_cost_log': node.comm_cost_log
+                }
+                for node in self.nodes
+            ]
+        }
+        
+        with open(os.path.join(exp_dir, 'results.json'), 'w') as f:
+            json.dump(results, f, indent=2, cls=NumpyEncoder)
+
+
+# Helper class for JSON serialization of numpy arrays
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        return super(NumpyEncoder, self).default(obj)
+
+
+# Create output directory structure
+def create_output_dir():
+    """Create output directory structure for experiment results."""
+    # Create base output directory with timestamp
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    base_dir = f"federated_learning_results_{timestamp}"
+    os.makedirs(base_dir, exist_ok=True)
+    
+    # Create readme file
+    with open(os.path.join(base_dir, "README.md"), "w") as f:
+        f.write("# Decentralized Federated Learning Experiment Results\n\n")
+        f.write(f"Experiment run on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        f.write("## Directory Structure\n")
+        f.write("- Each subdirectory contains results for a specific experimental condition\n")
+        f.write("- Directory naming format: nodes{N}_iid{true/false}_conn{connectivity}_comm{probability}\n")
+        f.write("- Contains network visualization, convergence plots, model comparisons, and raw data\n\n")
+        f.write("## Files\n")
+        f.write("- `network_structure.png`: Visualization of the node network\n")
+        f.write("- `convergence.png`: Training loss, accuracy, and communication cost plots\n")
+        f.write("- `model_comparison.png`: Comparison of performance across nodes\n")
+        f.write("- `results.json`: Raw experimental data\n")
+        f.write("- `summary.txt`: Summary of experimental results\n\n")
+        f.write("## Combined Results\n")
+        f.write("- `experiment_comparison.png`: Comparison across all experimental conditions\n")
+        f.write("- `results_summary.csv`: Summary metrics for all conditions\n")
+    
+    return base_dir
 
 
 # Run simulation
-def run_simulation(num_nodes=5, num_rounds=20, iid=True, connectivity=0.3, comm_prob=0.5):
+def run_simulation(num_nodes=5, num_rounds=20, iid=True, connectivity=0.3, comm_prob=0.5, base_dir="results"):
     """Run a complete simulation of decentralized federated learning on CIFAR-10."""
+    # Create experiment directory
+    exp_name = f"nodes{num_nodes}_iid{'true' if iid else 'false'}_conn{connectivity}_comm{comm_prob}"
+    exp_dir = os.path.join(base_dir, exp_name)
+    os.makedirs(exp_dir, exist_ok=True)
+    
+    # Log experiment parameters
+    with open(os.path.join(exp_dir, "params.txt"), "w") as f:
+        f.write(f"Number of nodes: {num_nodes}\n")
+        f.write(f"IID data distribution: {iid}\n")
+        f.write(f"Network connectivity: {connectivity}\n")
+        f.write(f"Communication probability: {comm_prob}\n")
+        f.write(f"Number of rounds: {num_rounds}\n")
+    
     # Check if CUDA is available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -387,7 +471,8 @@ def run_simulation(num_nodes=5, num_rounds=20, iid=True, connectivity=0.3, comm_
         num_nodes=num_nodes,
         connectivity_prob=connectivity,
         comm_prob=comm_prob,
-        device=device
+        device=device,
+        output_dir=exp_dir
     )
     
     # Partition data and initialize nodes
@@ -395,9 +480,13 @@ def run_simulation(num_nodes=5, num_rounds=20, iid=True, connectivity=0.3, comm_
     fl_system.initialize_nodes(train_loaders, test_loader)
     
     # Visualize network
-    fl_system.visualize_network()
-    plt.savefig('network_structure.png')
-    plt.close()
+    fl_system.visualize_network(os.path.join(exp_dir, 'network_structure.png'))
+    
+    # Log file for progress
+    log_file = os.path.join(exp_dir, "training_log.txt")
+    with open(log_file, "w") as f:
+        f.write(f"Starting training with {num_nodes} nodes, IID={iid}\n")
+        f.write(f"Network connectivity: {connectivity}, Communication probability: {comm_prob}\n\n")
     
     # Start training
     print(f"Starting training with {num_nodes} nodes, IID={iid}")
@@ -408,32 +497,45 @@ def run_simulation(num_nodes=5, num_rounds=20, iid=True, connectivity=0.3, comm_
         comm_cost, train_loss, train_acc = fl_system.gossip_round()
         end_time = time.time()
         
+        # Log progress
+        log_message = f"Round {round_num+1}/{num_rounds} - " \
+                      f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, " \
+                      f"Comm Cost: {comm_cost:.2f} KB, " \
+                      f"Time: {end_time - start_time:.2f}s"
+        
         # Evaluate global performance every 5 rounds
         if round_num % 5 == 0 or round_num == num_rounds - 1:
             test_loss, test_acc, test_std = fl_system.evaluate_global_performance()
-            print(f"Round {round_num+1}/{num_rounds} - "
-                  f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, "
-                  f"Test Acc: {test_acc:.2f}±{test_std:.2f}%, "
-                  f"Comm Cost: {comm_cost:.2f} KB, "
-                  f"Time: {end_time - start_time:.2f}s")
-        else:
-            print(f"Round {round_num+1}/{num_rounds} - "
-                  f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, "
-                  f"Comm Cost: {comm_cost:.2f} KB, "
-                  f"Time: {end_time - start_time:.2f}s")
+            log_message += f", Test Acc: {test_acc:.2f}±{test_std:.2f}%"
+        
+        print(log_message)
+        with open(log_file, "a") as f:
+            f.write(log_message + "\n")
     
     # Plot convergence
-    fl_system.plot_convergence()
-    plt.savefig('convergence.png')
-    plt.close()
+    fl_system.plot_convergence(os.path.join(exp_dir, 'convergence.png'))
     
     # Compare models
-    fl_system.compare_models()
-    plt.savefig('model_comparison.png')
-    plt.close()
+    fl_system.compare_models(os.path.join(exp_dir, 'model_comparison.png'))
+    
+    # Save results
+    fl_system.save_results(exp_dir)
     
     # Final evaluation
     test_loss, test_acc, test_std = fl_system.evaluate_global_performance()
+    
+    # Write summary
+    with open(os.path.join(exp_dir, "summary.txt"), "w") as f:
+        f.write("# Experiment Summary\n\n")
+        f.write(f"Number of nodes: {num_nodes}\n")
+        f.write(f"Data distribution: {'IID' if iid else 'Non-IID'}\n")
+        f.write(f"Network connectivity: {connectivity}\n")
+        f.write(f"Communication probability: {comm_prob}\n")
+        f.write(f"Number of rounds: {num_rounds}\n\n")
+        f.write(f"Final test accuracy: {test_acc:.2f}±{test_std:.2f}%\n")
+        f.write(f"Total communication cost: {fl_system.total_comm_cost:.2f} KB\n")
+        f.write(f"Average communication cost per round: {fl_system.total_comm_cost/num_rounds:.2f} KB\n")
+    
     print("\nFinal Results:")
     print(f"Number of nodes: {num_nodes}")
     print(f"Data distribution: {'IID' if iid else 'Non-IID'}")
@@ -442,11 +544,15 @@ def run_simulation(num_nodes=5, num_rounds=20, iid=True, connectivity=0.3, comm_
     print(f"Test accuracy: {test_acc:.2f}±{test_std:.2f}%")
     print(f"Total communication cost: {fl_system.total_comm_cost:.2f} KB")
     
-    return fl_system
+    return fl_system, test_acc, test_std, fl_system.total_comm_cost
+
 
 # Experiment with different parameters
 def run_experiments():
     """Run experiments with different parameters."""
+    # Create base output directory
+    base_dir = create_output_dir()
+    
     # Configuration
     num_nodes_list = [5, 10]
     iid_settings = [True, False]
@@ -462,17 +568,17 @@ def run_experiments():
                     print(f"\n\n===== Running experiment with: =====")
                     print(f"Nodes: {num_nodes}, IID: {iid}, Connectivity: {connectivity}, Comm Prob: {comm_prob}")
                     
-                    # Run for fewer rounds to save time during experiments
-                    fl_system = run_simulation(
+                    # Run simulation
+                    _, test_acc, test_std, total_comm_cost = run_simulation(
                         num_nodes=num_nodes,
                         num_rounds=10,  # Reduced for faster experimentation
                         iid=iid,
                         connectivity=connectivity,
-                        comm_prob=comm_prob
+                        comm_prob=comm_prob,
+                        base_dir=base_dir
                     )
                     
                     # Record results
-                    test_loss, test_acc, test_std = fl_system.evaluate_global_performance()
                     results.append({
                         'num_nodes': num_nodes,
                         'iid': iid,
@@ -480,8 +586,16 @@ def run_experiments():
                         'comm_prob': comm_prob,
                         'test_acc': test_acc,
                         'test_std': test_std,
-                        'total_comm_cost': fl_system.total_comm_cost
+                        'total_comm_cost': total_comm_cost
                     })
+    
+    # Save results summary as CSV
+    with open(os.path.join(base_dir, "results_summary.csv"), "w") as f:
+        f.write("num_nodes,iid,connectivity,comm_prob,test_acc,test_std,total_comm_cost\n")
+        for result in results:
+            f.write(f"{result['num_nodes']},{result['iid']},{result['connectivity']},"
+                    f"{result['comm_prob']},{result['test_acc']},{result['test_std']},"
+                    f"{result['total_comm_cost']}\n")
     
     # Print results summary
     print("\n===== Results Summary =====")
@@ -540,14 +654,24 @@ def run_experiments():
     plt.legend()
     
     plt.tight_layout()
-    plt.savefig('experiment_comparison.png')
+    plt.savefig(os.path.join(base_dir, 'experiment_comparison.png'))
     plt.close()
     
-    return results
+    print(f"\nExperiment results saved to: {base_dir}")
+    return results, base_dir
+
 
 if __name__ == "__main__":
-    # Run a single simulation
-    fl_system = run_simulation(num_nodes=5, num_rounds=15, iid=True)
+    # Run the experiments
+    results, output_dir = run_experiments()
     
-    # Uncomment to run full experiments (takes longer)
-    # results = run_experiments()
+    # To run a single simulation instead:
+    # base_dir = create_output_dir()
+    # fl_system, test_acc, test_std, total_comm_cost = run_simulation(
+    #     num_nodes=5, 
+    #     num_rounds=15, 
+    #     iid=True, 
+    #     connectivity=0.3, 
+    #     comm_prob=0.5,
+    #     base_dir=base_dir
+    # )
