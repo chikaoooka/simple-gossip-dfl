@@ -110,7 +110,8 @@ class Node:
         return comm_cost
     
     def aggregate_models(self, neighbors_params_list):
-        """Aggregate model parameters from neighbors using FedAvg."""
+        """Aggregate model parameters from neighbors."""
+        #TODO: Implement FedAvg
         if not neighbors_params_list:
             return
         
@@ -182,6 +183,7 @@ class GossipFederatedLearning:
     
     def partition_cifar10(self, train_dataset, iid=False, batch_size=64, num_workers=2):
         """Partition the CIFAR-10 dataset among nodes."""
+        #TODO: unbalanced partitioning
         if iid:
             # IID partitioning
             partition_size = len(train_dataset) // self.num_nodes
@@ -200,7 +202,8 @@ class GossipFederatedLearning:
             
             # Assign classes to nodes (each node gets 2 primary classes)
             node_class_map = {i: [(i*2) % 10, (i*2 + 1) % 10] for i in range(self.num_nodes)}
-            
+            #NOTE: This method can be improved to ensure no overlap among nodes when num_nodes > 10
+
             # Create partitions
             node_indices = [[] for _ in range(self.num_nodes)]
             for node_id, primary_classes in node_class_map.items():
@@ -254,6 +257,7 @@ class GossipFederatedLearning:
     
     def gossip_round(self):
         """Execute one round of gossip communication."""
+        #TODO: parallelize this loop
         round_comm_cost = 0
         
         # Each node trains its local model
@@ -493,15 +497,15 @@ def run_simulation(num_nodes=5, num_rounds=20, iid=True, connectivity=0.3, comm_
     print(f"Network connectivity: {connectivity}, Communication probability: {comm_prob}")
     
     for round_num in range(num_rounds):
-        start_time = time.time()
+        # start_time = time.time()
         comm_cost, train_loss, train_acc = fl_system.gossip_round()
-        end_time = time.time()
+        # end_time = time.time()
         
         # Log progress
         log_message = f"Round {round_num+1}/{num_rounds} - " \
                       f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, " \
                       f"Comm Cost: {comm_cost:.2f} KB, " \
-                      f"Time: {end_time - start_time:.2f}s"
+                    #   f"Time: {end_time - start_time:.2f}s"
         
         # Evaluate global performance every 5 rounds
         if round_num % 5 == 0 or round_num == num_rounds - 1:
@@ -571,7 +575,7 @@ def run_experiments():
                     # Run simulation
                     _, test_acc, test_std, total_comm_cost = run_simulation(
                         num_nodes=num_nodes,
-                        num_rounds=10,  # Reduced for faster experimentation
+                        num_rounds=100,  # Reduced for faster experimentation
                         iid=iid,
                         connectivity=connectivity,
                         comm_prob=comm_prob,
@@ -663,15 +667,15 @@ def run_experiments():
 
 if __name__ == "__main__":
     # Run the experiments
-    results, output_dir = run_experiments()
+    # results, output_dir = run_experiments()
     
     # To run a single simulation instead:
-    # base_dir = create_output_dir()
-    # fl_system, test_acc, test_std, total_comm_cost = run_simulation(
-    #     num_nodes=5, 
-    #     num_rounds=15, 
-    #     iid=True, 
-    #     connectivity=0.3, 
-    #     comm_prob=0.5,
-    #     base_dir=base_dir
-    # )
+    base_dir = create_output_dir()
+    fl_system, test_acc, test_std, total_comm_cost = run_simulation(
+        num_nodes=10, 
+        num_rounds=50, 
+        iid=False, 
+        connectivity=0.7, 
+        comm_prob=0.8,
+        base_dir=base_dir
+    )
