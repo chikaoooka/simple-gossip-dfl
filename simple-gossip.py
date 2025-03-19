@@ -14,143 +14,14 @@ import os
 import datetime
 import json
 
+from models.cnn import SimpleCNN
+from utils.utils import NumpyEncoder
+
 # Set random seed for reproducibility
+SEED = 42
 torch.manual_seed(42)
 np.random.seed(42)
 random.seed(42)
-
-# Define CNN model for CIFAR-10
-class SimpleCNN(nn.Module):
-    def __init__(self):
-        super(SimpleCNN, self).__init__()
-        self.conv1 = nn.Conv2d(3, 32, 3, padding=1)
-        self.conv2 = nn.Conv2d(32, 64, 3, padding=1)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.fc1 = nn.Linear(64 * 8 * 8, 512)
-        self.fc2 = nn.Linear(512, 10)
-
-    def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 64 * 8 * 8)
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-
-    def get_param_dict(self):
-        """Get the model parameters as a dictionary."""
-        return {k: v.clone() for k, v in self.state_dict().items()}
-
-    def set_param_dict(self, params_dict):
-        """Set the model parameters from a dictionary."""
-        self.load_state_dict(params_dict)
-
-class Node:
-    def __init__(self, node_id, neighbors, local_data_loader, device='cpu',
-                 local_epochs=1, learning_rate=0.01, comm_cost_per_kb=1):
-        """Initialize a node in the decentralized network."""
-        self.node_id = node_id
-        self.neighbors = neighbors
-        self.local_data_loader = local_data_loader
-        self.device = device
-        self.local_epochs = local_epochs
-        self.learning_rate = learning_rate
-        self.comm_cost_per_kb = comm_cost_per_kb
-        self.comm_cost_log = []
-        self.loss_history = []
-        self.accuracy_history = []
-        
-        # Initialize model
-        self.model = SimpleCNN().to(self.device)
-        self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate, momentum=0.9)
-    
-    def train_local_model(self):
-        """Train the model on local data."""
-        self.model.train()
-        epoch_loss = 0.0
-        correct = 0
-        total = 0
-        
-        for epoch in range(self.local_epochs):
-            running_loss = 0.0
-            for i, data in enumerate(self.local_data_loader):
-                inputs, labels = data[0].to(self.device), data[1].to(self.device)
-                
-                # Zero the parameter gradients
-                self.optimizer.zero_grad()
-                
-                # Forward pass
-                outputs = self.model(inputs)
-                loss = self.criterion(outputs, labels)
-                
-                # Backward pass and optimize
-                loss.backward()
-                self.optimizer.step()
-                
-                # Statistics
-                running_loss += loss.item()
-                _, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-            
-            epoch_loss = running_loss / len(self.local_data_loader)
-        
-        self.loss_history.append(epoch_loss)
-        self.accuracy_history.append(100 * correct / total)
-        
-        return self.model.get_param_dict()
-    
-    def receive_model(self, params_dict):
-        """Receive model parameters from a neighbor."""
-        # Calculate communication cost based on parameter size
-        param_size_bytes = sum(p.nelement() * p.element_size() for p in self.model.parameters())
-        comm_cost = (param_size_bytes / 1024) * self.comm_cost_per_kb  # Convert to KB
-        self.comm_cost_log.append(comm_cost)
-        return comm_cost
-    
-    def aggregate_models(self, neighbors_params_list):
-        """Aggregate model parameters from neighbors."""
-        #TODO: Implement FedAvg
-        if not neighbors_params_list:
-            return
-        
-        # Add self model to the averaging
-        all_params = [self.model.get_param_dict()] + neighbors_params_list
-        avg_params = {}
-        
-        # Calculate average for each parameter
-        for param_name in all_params[0].keys():
-            # Stack all tensors for this parameter
-            stacked_params = torch.stack([params[param_name] for params in all_params])
-            # Calculate mean across models
-            avg_params[param_name] = torch.mean(stacked_params, dim=0)
-        
-        # Update model with averaged parameters
-        self.model.set_param_dict(avg_params)
-    
-    def evaluate(self, test_loader):
-        """Evaluate the model on test data."""
-        self.model.eval()
-        correct = 0
-        total = 0
-        test_loss = 0.0
-        
-        with torch.no_grad():
-            for data in test_loader:
-                images, labels = data[0].to(self.device), data[1].to(self.device)
-                outputs = self.model(images)
-                loss = self.criterion(outputs, labels)
-                test_loss += loss.item()
-                _, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-        
-        accuracy = 100 * correct / total
-        avg_loss = test_loss / len(test_loader)
-        
-        return avg_loss, accuracy
-
 
 class GossipFederatedLearning:
     def __init__(self, num_nodes, connectivity_prob=0.3, comm_prob=0.5, device='cpu', output_dir='results'):
@@ -165,6 +36,9 @@ class GossipFederatedLearning:
         self.total_comm_cost = 0
         self.global_loss_history = []
         self.global_accuracy_history = []
+        self.test_loss_history = []
+        self.test_accuracy_history = []
+        self.test_accuracy_std = []
         self.round_comm_costs = []
     
     def generate_network(self):
@@ -249,9 +123,11 @@ class GossipFederatedLearning:
             # Create node with its dataset
             node = Node(
                 node_id=i,
+                model=SimpleCNN(seed=SEED),
                 neighbors=neighbors,
                 local_data_loader=train_loaders[i],
-                device=self.device
+                device=self.device,
+                seed=SEED
             )
             self.nodes.append(node)
     
@@ -318,27 +194,51 @@ class GossipFederatedLearning:
         plt.close()
     
     def plot_convergence(self, save_path):
-        """Plot the convergence of loss and accuracy over rounds."""
-        plt.figure(figsize=(15, 5))
+        """Plot the convergence of loss and accuracy over rounds, including test metrics and standard deviation."""
+        plt.figure(figsize=(15, 10))
         
-        plt.subplot(1, 3, 1)
-        plt.plot(self.global_loss_history)
-        plt.title("Training Loss Convergence")
+        # Training Loss
+        plt.subplot(2, 2, 1)
+        plt.plot(self.global_loss_history, label="Train Loss", color="blue")
+        if hasattr(self, 'test_loss_history'):
+            plt.plot(self.test_loss_history, label="Test Loss", color="orange")
+            if hasattr(self, 'test_loss_std'):
+                plt.fill_between(
+                    range(len(self.test_loss_history)),
+                    np.array(self.test_loss_history) - np.array(self.test_loss_std),
+                    np.array(self.test_loss_history) + np.array(self.test_loss_std),
+                    color="orange", alpha=0.2, label="Test Loss Std Dev"
+                )
+        plt.title("Loss Convergence")
         plt.xlabel("Communication Round")
-        plt.ylabel("Average Loss")
-        
-        plt.subplot(1, 3, 2)
-        plt.plot(self.global_accuracy_history)
-        plt.title("Training Accuracy")
+        plt.ylabel("Loss")
+        plt.legend()
+
+        # Training Accuracy
+        plt.subplot(2, 2, 2)
+        plt.plot(self.global_accuracy_history, label="Train Accuracy", color="blue")
+        if hasattr(self, 'test_accuracy_history'):
+            plt.plot(self.test_accuracy_history, label="Test Accuracy", color="orange")
+            if hasattr(self, 'test_accuracy_std'):
+                plt.fill_between(
+                    range(len(self.test_accuracy_history)),
+                    np.array(self.test_accuracy_history) - np.array(self.test_accuracy_std),
+                    np.array(self.test_accuracy_history) + np.array(self.test_accuracy_std),
+                    color="orange", alpha=0.2, label="Test Accuracy Std Dev"
+                )
+        plt.title("Accuracy Convergence")
         plt.xlabel("Communication Round")
-        plt.ylabel("Average Accuracy (%)")
-        
-        plt.subplot(1, 3, 3)
-        plt.plot(self.round_comm_costs)
+        plt.ylabel("Accuracy (%)")
+        plt.legend()
+
+        # Communication Cost
+        plt.subplot(2, 2, 3)
+        plt.plot(self.round_comm_costs, label="Communication Cost", color="green")
         plt.title("Communication Cost per Round")
         plt.xlabel("Communication Round")
         plt.ylabel("Communication Cost (KB)")
-        
+        plt.legend()
+
         plt.tight_layout()
         plt.savefig(save_path)
         plt.close()
@@ -389,18 +289,6 @@ class GossipFederatedLearning:
         
         with open(os.path.join(exp_dir, 'results.json'), 'w') as f:
             json.dump(results, f, indent=2, cls=NumpyEncoder)
-
-
-# Helper class for JSON serialization of numpy arrays
-class NumpyEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        if isinstance(obj, np.integer):
-            return int(obj)
-        if isinstance(obj, np.floating):
-            return float(obj)
-        return super(NumpyEncoder, self).default(obj)
 
 
 # Create output directory structure
@@ -504,13 +392,16 @@ def run_simulation(num_nodes=5, num_rounds=20, iid=True, connectivity=0.3, comm_
         # Log progress
         log_message = f"Round {round_num+1}/{num_rounds} - " \
                       f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, " \
-                      f"Comm Cost: {comm_cost:.2f} KB, " \
-                    #   f"Time: {end_time - start_time:.2f}s"
+                      f"Comm Cost: {comm_cost:.2f} KB" \
+                    #   f", Time: {end_time - start_time:.2f}s"
         
-        # Evaluate global performance every 5 rounds
-        if round_num % 5 == 0 or round_num == num_rounds - 1:
-            test_loss, test_acc, test_std = fl_system.evaluate_global_performance()
-            log_message += f", Test Acc: {test_acc:.2f}±{test_std:.2f}%"
+        # Evaluate global performance
+        # if round_num % 5 == 0 or round_num == num_rounds - 1:
+        test_loss, test_acc, test_std = fl_system.evaluate_global_performance()
+        log_message += f", Test Acc: {test_acc:.2f}±{test_std:.2f}%"
+        fl_system.test_loss_history.append(test_loss)
+        fl_system.test_accuracy_history.append(test_acc)
+        fl_system.test_accuracy_std.append(test_std)
         
         print(log_message)
         with open(log_file, "a") as f:
