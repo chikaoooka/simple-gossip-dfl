@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from simple_gossip.models.cnn import SimpleCNN
+from models.cnn import SimpleCNN
 
 class Node:
     def __init__(self, node_id, model, neighbors, local_data_loader, device='cpu',

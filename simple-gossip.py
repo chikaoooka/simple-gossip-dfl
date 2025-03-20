@@ -15,13 +15,12 @@ import datetime
 import json
 
 from models.cnn import SimpleCNN
-from utils.utils import NumpyEncoder
+from core.node import Node
+from core.utils import NumpyEncoder
 
 # Set random seed for reproducibility
 SEED = 42
-torch.manual_seed(42)
-np.random.seed(42)
-random.seed(42)
+random.seed(SEED)
 
 class GossipFederatedLearning:
     def __init__(self, num_nodes, connectivity_prob=0.3, comm_prob=0.5, device='cpu', output_dir='results'):
@@ -563,9 +562,9 @@ if __name__ == "__main__":
     # To run a single simulation instead:
     base_dir = create_output_dir()
     fl_system, test_acc, test_std, total_comm_cost = run_simulation(
-        num_nodes=10, 
-        num_rounds=50, 
-        iid=False, 
+        num_nodes=3, 
+        num_rounds=10, 
+        iid=True, 
         connectivity=0.7, 
         comm_prob=0.8,
         base_dir=base_dir

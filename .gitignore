@@ -1,3 +1,4 @@
 .simple
 data/
 outputs/
+__pycache__/
