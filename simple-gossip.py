@@ -1,7 +1,4 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
 import numpy as np
 import random
 import os
@@ -12,13 +9,13 @@ from core.utils import create_output_dir, prepare_CIFAR10, plot_comparison
 
 # Set random seed for reproducibility
 SEED = 42
-random.seed(SEED)
 
 
 class GossipFederatedLearning(DFL):
     def __init__(self, comm_prob, **kwargs):
         super().__init__(**kwargs)
         self.comm_prob = comm_prob
+        random.seed(self.seed)
 
     def gossip_round(self):
         """Execute one round of gossip communication."""
