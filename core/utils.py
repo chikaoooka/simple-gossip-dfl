@@ -163,10 +163,10 @@ def create_output_dir():
 
 def plot_comparison(results, iid_settings, base_dir):
     """Plot comparison of loss and accuracy across nodes."""
-    plt.figure(figsize=(15, 10))
+    plt.figure(figsize=(10, 10))
 
     # Plot test accuracy vs communication cost
-    plt.subplot(2, 2, 1)
+    plt.subplot(2, 3, 1)
     for result in results:
         marker = "o" if result["iid"] else "x"
         color = "blue" if result["num_nodes"] == 5 else "red"
@@ -182,7 +182,7 @@ def plot_comparison(results, iid_settings, base_dir):
     plt.title("Accuracy vs Communication Cost")
 
     # Plot test accuracy vs nodes
-    plt.subplot(2, 2, 2)
+    plt.subplot(2, 3, 2)
     for iid in iid_settings:
         acc_values = [r["test_acc"] for r in results if r["iid"] == iid]
         nodes_values = [r["num_nodes"] for r in results if r["iid"] == iid]
@@ -192,8 +192,19 @@ def plot_comparison(results, iid_settings, base_dir):
     plt.title("Accuracy vs Number of Nodes")
     plt.legend()
 
+    # Plot test accuracy vs local epochs
+    plt.subplot(2, 3, 3)
+    for iid in iid_settings:
+        acc_values = [r["test_acc"] for r in results if r["iid"] == iid]
+        epochs_values = [r["local_epochs"] for r in results if r["iid"] == iid]
+        plt.scatter(epochs_values, acc_values, label=f"{'IID' if iid else 'Non-IID'}")
+    plt.xlabel("Local Epochs")
+    plt.ylabel("Test Accuracy (%)")
+    plt.title("Accuracy vs Local Epochs")
+    plt.legend()
+
     # Plot test accuracy vs connectivity
-    plt.subplot(2, 2, 3)
+    plt.subplot(2, 3, 4)
     for iid in iid_settings:
         acc_values = [r["test_acc"] for r in results if r["iid"] == iid]
         connectivity_values = [r["connectivity"] for r in results if r["iid"] == iid]
@@ -206,7 +217,7 @@ def plot_comparison(results, iid_settings, base_dir):
     plt.legend()
 
     # Plot test accuracy vs communication probability
-    plt.subplot(2, 2, 4)
+    plt.subplot(2, 3, 5)
     for iid in iid_settings:
         acc_values = [r["test_acc"] for r in results if r["iid"] == iid]
         comm_prob_values = [r["comm_prob"] for r in results if r["iid"] == iid]
