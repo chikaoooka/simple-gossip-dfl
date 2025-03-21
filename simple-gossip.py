@@ -69,7 +69,7 @@ def run_simulation(
 ):
     """Run a complete simulation of decentralized federated learning on CIFAR-10."""
     # Create experiment directory
-    exp_name = f"nodes{num_nodes}_iid{'true' if iid else 'false'}_conn{connectivity}_comm{comm_prob}"
+    exp_name = f"nodes{num_nodes}_iid{'true' if iid else 'false'}_conn{connectivity}_comm{comm_prob}_epochs{local_epochs}"
     exp_dir = os.path.join(base_dir, exp_name)
     os.makedirs(exp_dir, exist_ok=True)
 
@@ -239,8 +239,12 @@ def run_experiments():
 
     # Print results summary
     print("\n===== Results Summary =====")
-    print("| Nodes | IID | Connectivity | Comm Prob | Local Epochs | Test Acc | Comm Cost |")
-    print("|-------|-----|--------------|-----------|--------------|----------|-----------|")
+    print(
+        "| Nodes | IID | Connectivity | Comm Prob | Local Epochs | Test Acc | Comm Cost |"
+    )
+    print(
+        "|-------|-----|--------------|-----------|--------------|----------|-----------|"
+    )
     for result in results:
         print(
             f"| {result['num_nodes']:5d} | {'Yes' if result['iid'] else 'No':3s} | "
@@ -256,15 +260,15 @@ def run_experiments():
 
 if __name__ == "__main__":
     # Run the experiments
-    # results, output_dir = run_experiments()
+    results, output_dir = run_experiments()
 
     # To run a single simulation instead:
-    base_dir = create_output_dir()
-    fl_system, test_acc, test_std, total_comm_cost = run_simulation(
-        num_nodes=3,
-        num_rounds=3,
-        iid=True,
-        connectivity=0.7,
-        comm_prob=0.8,
-        base_dir=base_dir,
-    )
+    # base_dir = create_output_dir()
+    # fl_system, test_acc, test_std, total_comm_cost = run_simulation(
+    #     num_nodes=3,
+    #     num_rounds=3,
+    #     iid=True,
+    #     connectivity=0.7,
+    #     comm_prob=0.8,
+    #     base_dir=base_dir,
+    # )
