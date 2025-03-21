@@ -11,10 +11,11 @@ from models.cnn import SimpleCNN
 
 
 class DFL:
-    def __init__(self, num_nodes, connectivity_prob, device, output_dir, seed=42):
+    def __init__(self, num_nodes, connectivity_prob, device="cpu", local_epochs=1, output_dir="outputs", seed=42):
         self.num_nodes = num_nodes
         self.connectivity_prob = connectivity_prob
         self.device = device
+        self.local_epochs = local_epochs
         self.output_dir = output_dir
         self.nodes = []
         self.network = None
@@ -58,6 +59,7 @@ class DFL:
                 neighbors=neighbors,
                 local_data_loader=train_loaders[i],
                 device=self.device,
+                local_epochs=self.local_epochs,
                 seed=self.seed,
             )
             self.nodes.append(node)

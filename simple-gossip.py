@@ -64,6 +64,7 @@ def run_simulation(
     iid=True,
     connectivity=0.3,
     comm_prob=0.5,
+    local_epochs=1,
     base_dir="results",
 ):
     """Run a complete simulation of decentralized federated learning on CIFAR-10."""
@@ -90,6 +91,7 @@ def run_simulation(
         connectivity_prob=connectivity,
         comm_prob=comm_prob,
         device=device,
+        local_epochs=local_epochs,
         output_dir=exp_dir,
     )
 
@@ -180,10 +182,11 @@ def run_experiments():
     base_dir = create_output_dir()
 
     # Configuration
-    num_nodes_list = [1, 2]
+    num_nodes_list = [10]
     iid_settings = [True, False]
     connectivity_list = [0.3, 0.7]
-    comm_prob_list = [0.5, 0.8]
+    comm_prob_list = [0.8]
+    local_epoch_list = [1, 3, 5]
 
     results = []
 
@@ -191,33 +194,36 @@ def run_experiments():
         for iid in iid_settings:
             for connectivity in connectivity_list:
                 for comm_prob in comm_prob_list:
-                    print(f"\n\n===== Running experiment with: =====")
-                    print(
-                        f"Nodes: {num_nodes}, IID: {iid}, Connectivity: {connectivity}, Comm Prob: {comm_prob}"
-                    )
+                    for local_epochs in local_epoch_list:
+                        print(f"\n\n===== Running experiment with: =====")
+                        print(
+                            f"Nodes: {num_nodes}, IID: {iid}, Connectivity: {connectivity}, Comm Prob: {comm_prob}, Local Epochs: {local_epochs}"
+                        )
 
-                    # Run simulation
-                    _, test_acc, test_std, total_comm_cost = run_simulation(
-                        num_nodes=num_nodes,
-                        num_rounds=100,  # Reduced for faster experimentation
-                        iid=iid,
-                        connectivity=connectivity,
-                        comm_prob=comm_prob,
-                        base_dir=base_dir,
-                    )
+                        # Run simulation
+                        _, test_acc, test_std, total_comm_cost = run_simulation(
+                            num_nodes=num_nodes,
+                            num_rounds=100,  # Reduced for faster experimentation
+                            iid=iid,
+                            connectivity=connectivity,
+                            comm_prob=comm_prob,
+                            local_epochs=local_epochs,
+                            base_dir=base_dir,
+                        )
 
-                    # Record results
-                    results.append(
-                        {
-                            "num_nodes": num_nodes,
-                            "iid": iid,
-                            "connectivity": connectivity,
-                            "comm_prob": comm_prob,
-                            "test_acc": test_acc,
-                            "test_std": test_std,
-                            "total_comm_cost": total_comm_cost,
-                        }
-                    )
+                        # Record results
+                        results.append(
+                            {
+                                "num_nodes": num_nodes,
+                                "iid": iid,
+                                "connectivity": connectivity,
+                                "comm_prob": comm_prob,
+                                "local_epochs": local_epochs,
+                                "test_acc": test_acc,
+                                "test_std": test_std,
+                                "total_comm_cost": total_comm_cost,
+                            }
+                        )
 
     # Save results summary as CSV
     with open(os.path.join(base_dir, "results_summary.csv"), "w") as f:
