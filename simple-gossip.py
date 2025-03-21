@@ -109,13 +109,13 @@ def run_simulation(
     with open(log_file, "w") as f:
         f.write(f"Starting training with {num_nodes} nodes, IID={iid}\n")
         f.write(
-            f"Network connectivity: {connectivity}, Communication probability: {comm_prob}\n\n"
+            f"Network connectivity: {connectivity}, Communication probability: {comm_prob}, Local epochs: {local_epochs}\n\n"
         )
 
     # Start training
     print(f"Starting training with {num_nodes} nodes, IID={iid}")
     print(
-        f"Network connectivity: {connectivity}, Communication probability: {comm_prob}"
+        f"Network connectivity: {connectivity}, Communication probability: {comm_prob}, Local epochs: {local_epochs}"
     )
 
     for round_num in range(num_rounds):
@@ -228,23 +228,23 @@ def run_experiments():
     # Save results summary as CSV
     with open(os.path.join(base_dir, "results_summary.csv"), "w") as f:
         f.write(
-            "num_nodes,iid,connectivity,comm_prob,test_acc,test_std,total_comm_cost\n"
+            "num_nodes,iid,connectivity,comm_prob,local_epochs,test_acc,test_std,total_comm_cost\n"
         )
         for result in results:
             f.write(
                 f"{result['num_nodes']},{result['iid']},{result['connectivity']},"
-                f"{result['comm_prob']},{result['test_acc']},{result['test_std']},"
+                f"{result['comm_prob']},{result['local_epochs']},{result['test_acc']},{result['test_std']},"
                 f"{result['total_comm_cost']}\n"
             )
 
     # Print results summary
     print("\n===== Results Summary =====")
-    print("| Nodes | IID | Connectivity | Comm Prob | Test Acc | Comm Cost |")
-    print("|-------|-----|--------------|-----------|----------|-----------|")
+    print("| Nodes | IID | Connectivity | Comm Prob | Local Epochs | Test Acc | Comm Cost |")
+    print("|-------|-----|--------------|-----------|--------------|----------|-----------|")
     for result in results:
         print(
             f"| {result['num_nodes']:5d} | {'Yes' if result['iid'] else 'No':3s} | "
-            f"{result['connectivity']:12.1f} | {result['comm_prob']:9.1f} | "
+            f"{result['connectivity']:12.1f} | {result['comm_prob']:9.1f} | {result['local_epochs']:10d} | "
             f"{result['test_acc']:6.2f}% | {result['total_comm_cost']:9.2f} KB |"
         )
 
