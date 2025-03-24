@@ -1,60 +1,12 @@
 import torch
-import numpy as np
-import random
 import os
 
-from core.dfl import DFL
 from core.utils import create_output_dir, prepare_CIFAR10, plot_comparison
+from core.dfl import GossipFederatedLearning
 
 
 # Set random seed for reproducibility
 SEED = 42
-
-
-class GossipFederatedLearning(DFL):
-    def __init__(self, comm_prob, **kwargs):
-        super().__init__(**kwargs)
-        self.comm_prob = comm_prob
-        random.seed(self.seed)
-
-    def gossip_round(self):
-        """Execute one round of gossip communication."""
-        # TODO: parallelize this loop
-        round_comm_cost = 0
-
-        # Each node trains its local model
-        for node in self.nodes:
-            node.train_local_model()
-
-        # Nodes exchange models based on comm_prob
-        for node in self.nodes:
-            neighbors_params = []
-
-            for neighbor_id in node.neighbors:
-                # Probabilistic communication
-                if random.random() < self.comm_prob:
-                    neighbor = self.nodes[neighbor_id]
-                    neighbors_params.append(neighbor.model.get_param_dict())
-
-                    # Account for communication cost
-                    cost = node.receive_model(neighbor.model.get_param_dict())
-                    round_comm_cost += cost
-
-            # Aggregate models if any were received
-            if neighbors_params:
-                node.aggregate_models(neighbors_params)
-
-        self.total_comm_cost += round_comm_cost
-        self.round_comm_costs.append(round_comm_cost)
-
-        # Calculate average loss and accuracy across all nodes
-        avg_loss = np.mean([node.loss_history[-1] for node in self.nodes])
-        avg_accuracy = np.mean([node.accuracy_history[-1] for node in self.nodes])
-
-        self.global_loss_history.append(avg_loss)
-        self.global_accuracy_history.append(avg_accuracy)
-
-        return round_comm_cost, avg_loss, avg_accuracy
 
 
 # Run simulation
@@ -182,7 +134,7 @@ def run_experiments():
     base_dir = create_output_dir()
 
     # Configuration
-    num_nodes_list = [10]
+    num_nodes_list = [5]
     iid_settings = [True, False]
     connectivity_list = [0.3, 0.7]
     comm_prob_list = [0.8]

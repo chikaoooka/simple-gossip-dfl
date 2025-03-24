@@ -10,8 +10,16 @@ from core.node import Node
 from models.cnn import SimpleCNN
 
 
-class DFL:
-    def __init__(self, num_nodes, connectivity_prob, device="cpu", local_epochs=1, output_dir="outputs", seed=42):
+class _DflBase:
+    def __init__(
+        self,
+        num_nodes,
+        connectivity_prob,
+        device="cpu",
+        local_epochs=1,
+        output_dir="outputs",
+        seed=42,
+    ):
         self.num_nodes = num_nodes
         self.connectivity_prob = connectivity_prob
         self.device = device
@@ -29,14 +37,16 @@ class DFL:
         self.seed = seed
         random.seed(seed)
         np.random.seed(seed)
-        
+
     def get_max_degree(self) -> int:
         """Get the maximum degree of the network."""
         return max([self.network.degree(node) for node in self.network.nodes])
 
     def generate_network(self) -> nx.Graph:
         """Generate a random network using Erdos-Renyi model."""
-        self.network = nx.erdos_renyi_graph(self.num_nodes, self.connectivity_prob, seed=self.seed)
+        self.network = nx.erdos_renyi_graph(
+            self.num_nodes, self.connectivity_prob, seed=self.seed
+        )
 
         # Ensure the graph is connected
         while not nx.is_connected(self.network):
@@ -200,3 +210,127 @@ class DFL:
 
         with open(os.path.join(exp_dir, "results.json"), "w") as f:
             json.dump(results, f, indent=2, cls=NumpyEncoder)
+
+
+class GossipFederatedLearning(_DflBase):
+    def __init__(self, comm_prob, **kwargs):
+        super().__init__(**kwargs)
+        self.comm_prob = comm_prob
+        random.seed(self.seed)
+
+    def gossip_round(self):
+        """Execute one round of gossip communication."""
+        # TODO: parallelize this loop
+        round_comm_cost = 0
+
+        # Each node trains its local model
+        for node in self.nodes:
+            node.train_local_model()
+
+        # Nodes exchange models based on comm_prob
+        for node in self.nodes:
+            neighbors_params = []
+
+            for neighbor_id in node.neighbors:
+                # Probabilistic communication
+                if random.random() < self.comm_prob:
+                    neighbor = self.nodes[neighbor_id]
+                    neighbors_params.append(neighbor.model.get_param_dict())
+
+                    # Account for communication cost
+                    cost = node.receive_model(neighbor.model.get_param_dict())
+                    round_comm_cost += cost
+
+            # Aggregate models if any were received
+            if neighbors_params:
+                node.aggregate_models(neighbors_params)
+
+        self.total_comm_cost += round_comm_cost
+        self.round_comm_costs.append(round_comm_cost)
+
+        # Calculate average loss and accuracy across all nodes
+        avg_loss = np.mean([node.loss_history[-1] for node in self.nodes])
+        avg_accuracy = np.mean([node.accuracy_history[-1] for node in self.nodes])
+
+        self.global_loss_history.append(avg_loss)
+        self.global_accuracy_history.append(avg_accuracy)
+
+        return round_comm_cost, avg_loss, avg_accuracy
+
+
+class ClippedGossipFL(_DflBase):
+    def __init__(self, comm_prob, **kwargs):
+        super().__init__(**kwargs)
+        self.comm_prob = comm_prob
+        random.seed(self.seed)
+
+    def initialize_nodes(self, train_loaders, test_loader):
+        self.generate_network()
+        self.test_loader = test_loader
+
+        for i in range(self.num_nodes):
+            # Get neighbors from network graph
+            neighbors = list(self.network.neighbors(i))
+            neighbor_weight, local_weight = self.calculate_weights()
+            # print ("neighbor_weight: ", neighbor_weight)
+            # print ("local_weight: ", local_weight)
+
+            # Create node with its dataset
+            node = ClippedGossipNode(
+                neighbor_weight=neighbor_weight,
+                local_weight=local_weight,
+                clip_threshold=1.0,
+                node_id=i,
+                model=SimpleCNN(seed=self.seed),
+                neighbors=neighbors,
+                local_data_loader=train_loaders[i],
+                device=self.device,
+                local_epochs=self.local_epochs,
+                seed=self.seed,
+            )
+            self.nodes.append(node)
+
+    def calculate_weights(self) -> tuple:
+        """Calculate local weights for each node based on its degree."""
+        neighbor_weight = 1 / (self.get_max_degree() + 1)
+        local_weitght = 1 - neighbor_weight * (self.num_nodes - 1)
+        return neighbor_weight, local_weitght
+
+    def gossip_round(self):
+        """Execute one round of gossip communication."""
+        # TODO: parallelize this loop
+        round_comm_cost = 0
+
+        # Each node trains its local model
+        for node in self.nodes:
+            node.train_local_model()
+
+        # Nodes exchange models based on comm_prob
+        for node in self.nodes:
+            neighbors_params = []
+
+            for neighbor_id in node.neighbors:
+                # Probabilistic communication
+                if random.random() < self.comm_prob:
+                    neighbor = self.nodes[neighbor_id]
+                    neighbors_params.append(neighbor.model.get_param_dict())
+
+                    # Account for communication cost
+                    cost = node.receive_model(neighbor.model.get_param_dict())
+                    round_comm_cost += cost
+
+            # Aggregate models if any were received
+            if neighbors_params:
+                node.aggregate_models(neighbors_params)
+
+        self.total_comm_cost += round_comm_cost
+        self.round_comm_costs.append(round_comm_cost)
+
+        # Calculate average loss and accuracy across all nodes
+        avg_loss = np.mean([node.loss_history[-1] for node in self.nodes])
+        avg_accuracy = np.mean([node.accuracy_history[-1] for node in self.nodes])
+
+        self.global_loss_history.append(avg_loss)
+        self.global_accuracy_history.append(avg_accuracy)
+
+        return round_comm_cost, avg_loss, avg_accuracy
