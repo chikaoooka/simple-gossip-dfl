@@ -129,34 +129,34 @@ def create_output_dir():
     os.makedirs(base_dir, exist_ok=True)
 
     # Create readme file
-    with open(os.path.join(base_dir, "README.md"), "w") as f:
-        f.write("# Decentralized Federated Learning Experiment Results\n\n")
-        f.write(
-            f"Experiment run on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        )
-        f.write("## Directory Structure\n")
-        f.write(
-            "- Each subdirectory contains results for a specific experimental condition\n"
-        )
-        f.write(
-            "- Directory naming format: nodes{N}_iid{true/false}_conn{connectivity}_comm{probability}\n"
-        )
-        f.write(
-            "- Contains network visualization, convergence plots, model comparisons, and raw data\n\n"
-        )
-        f.write("## Files\n")
-        f.write("- `network_structure.png`: Visualization of the node network\n")
-        f.write(
-            "- `convergence.png`: Training loss, accuracy, and communication cost plots\n"
-        )
-        f.write("- `model_comparison.png`: Comparison of performance across nodes\n")
-        f.write("- `results.json`: Raw experimental data\n")
-        f.write("- `summary.txt`: Summary of experimental results\n\n")
-        f.write("## Combined Results\n")
-        f.write(
-            "- `experiment_comparison.png`: Comparison across all experimental conditions\n"
-        )
-        f.write("- `results_summary.csv`: Summary metrics for all conditions\n")
+    # with open(os.path.join(base_dir, "README.md"), "w") as f:
+    #     f.write("# Decentralized Federated Learning Experiment Results\n\n")
+    #     f.write(
+    #         f"Experiment run on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+    #     )
+    #     f.write("## Directory Structure\n")
+    #     f.write(
+    #         "- Each subdirectory contains results for a specific experimental condition\n"
+    #     )
+    #     f.write(
+    #         "- Directory naming format: nodes{N}_iid{true/false}_conn{connectivity}_comm{probability}\n"
+    #     )
+    #     f.write(
+    #         "- Contains network visualization, convergence plots, model comparisons, and raw data\n\n"
+    #     )
+    #     f.write("## Files\n")
+    #     f.write("- `network_structure.png`: Visualization of the node network\n")
+    #     f.write(
+    #         "- `convergence.png`: Training loss, accuracy, and communication cost plots\n"
+    #     )
+    #     f.write("- `model_comparison.png`: Comparison of performance across nodes\n")
+    #     f.write("- `results.json`: Raw experimental data\n")
+    #     f.write("- `summary.txt`: Summary of experimental results\n\n")
+    #     f.write("## Combined Results\n")
+    #     f.write(
+    #         "- `experiment_comparison.png`: Comparison across all experimental conditions\n"
+    #     )
+    #     f.write("- `results_summary.csv`: Summary metrics for all conditions\n")
 
     return base_dir
 

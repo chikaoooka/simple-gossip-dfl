@@ -271,9 +271,9 @@ class ClippedGossipFL(_DflBase):
         for i in range(self.num_nodes):
             # Get neighbors from network graph
             neighbors = list(self.network.neighbors(i))
-            neighbor_weight, local_weight = self.calculate_weights()
-            # print ("neighbor_weight: ", neighbor_weight)
-            # print ("local_weight: ", local_weight)
+            neighbor_weight, local_weight = self.calculate_weights(neighbors)
+            print ("neighbor_weight: ", neighbor_weight)
+            print ("local_weight: ", local_weight)
 
             # Create node with its dataset
             node = ClippedGossipNode(
@@ -290,10 +290,10 @@ class ClippedGossipFL(_DflBase):
             )
             self.nodes.append(node)
 
-    def calculate_weights(self) -> tuple:
+    def calculate_weights(self, neighbors) -> tuple:
         """Calculate local weights for each node based on its degree."""
         neighbor_weight = 1 / (self.get_max_degree() + 1)
-        local_weitght = 1 - neighbor_weight * (self.num_nodes - 1)
+        local_weitght = 1 - neighbor_weight * len(neighbors)
         return neighbor_weight, local_weitght
 
     def gossip_round(self):

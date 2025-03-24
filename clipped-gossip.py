@@ -27,10 +27,12 @@ def run_simulation(
 
     # Log experiment parameters
     with open(os.path.join(exp_dir, "params.txt"), "w") as f:
+        f.write("Algorithm: ClippedGossip\n")
         f.write(f"Number of nodes: {num_nodes}\n")
         f.write(f"IID data distribution: {iid}\n")
         f.write(f"Network connectivity: {connectivity}\n")
         f.write(f"Communication probability: {comm_prob}\n")
+        f.write(f"Local epochs: {local_epochs}\n")
         f.write(f"Number of rounds: {num_rounds}\n")
 
     # Check if CUDA is available
@@ -219,7 +221,7 @@ if __name__ == "__main__":
     fl_system, test_acc, test_std, total_comm_cost = run_simulation(
         num_nodes=5,
         num_rounds=3,
-        iid=True,
+        iid=False,
         connectivity=0.7,
         comm_prob=0.8,
         base_dir=base_dir,

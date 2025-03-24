@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from models.cnn import SimpleCNN
+from typing import List, Dict, Any
 
 
 class Node:
@@ -37,7 +38,7 @@ class Node:
             self.model.parameters(), lr=self.learning_rate, momentum=0.9
         )
 
-    def train_local_model(self):
+    def train_local_model(self) -> Dict[str, torch.Tensor]:
         """Train the model on local data."""
         self.model.train()
         epoch_loss = 0.0
@@ -73,7 +74,7 @@ class Node:
 
         return self.model.get_param_dict()
 
-    def receive_model(self, params_dict):
+    def receive_model(self, params_dict: Dict[str, torch.Tensor]) -> float:
         """Receive model parameters from a neighbor."""
         # Calculate communication cost based on parameter size
         param_size_bytes = sum(
@@ -83,7 +84,9 @@ class Node:
         self.comm_cost_log.append(comm_cost)
         return comm_cost
 
-    def aggregate_models(self, neighbors_params_list):
+    def aggregate_models(
+        self, neighbors_params_list: List[Dict[str, torch.Tensor]]
+    ) -> None:
         """Aggregate model parameters from neighbors."""
         # TODO: Implement FedAvg
         if not neighbors_params_list:
@@ -103,7 +106,7 @@ class Node:
         # Update model with averaged parameters
         self.model.set_param_dict(avg_params)
 
-    def evaluate(self, test_loader):
+    def evaluate(self, test_loader) -> (float, float):
         """Evaluate the model on test data."""
         self.model.eval()
         correct = 0
@@ -131,67 +134,61 @@ class Node:
 # ---------------------------------------------------------------------------- #
 
 
-def clip(v, tau):
+def clip(v: torch.Tensor, tau: float) -> torch.Tensor:
+    """Clip a tensor to have a norm at most tau."""
     v_norm = torch.norm(v)
+    if torch.isnan(v_norm) or v_norm == 0:
+        return torch.zeros_like(v)
     scale = min(1, tau / v_norm)
-    if torch.isnan(v_norm):
-        return 0
     return v * scale
 
 
-def bucketing(inputs):
+def bucketing(inputs: List[torch.Tensor], bucket_size: int = 2) -> List[torch.Tensor]:
+    """Divide inputs into buckets and compute the average for each bucket."""
     import numpy as np
 
-    s = 2
-    indices = list(range(len(inputs)))
-    np.random.shuffle(indices)
-    T = int(np.ceil(len(inputs) / s))
+    indices = np.random.permutation(len(inputs))
+    buckets = [indices[i : i + bucket_size] for i in range(0, len(inputs), bucket_size)]
 
-    reshuflled_inputs = []
-    for t in range(T):
-        indices_slice = indices[t * s : (t + 1) * s]
-        g_bar = sum(inputs[i] for i in indices_slice) / len(indices_slice)
-        reshuflled_inputs.append(g_bar)
-    return reshuflled_inputs
+    return [sum(inputs[i] for i in bucket) / len(bucket) for bucket in buckets]
 
 
 class ClippedGossipNode(Node):
-    # TODO: Implement other mixing matrices
-    def __init__(self, local_weight, neighbor_weight, clip_threshold=1, **kwargs):
+    def __init__(
+        self,
+        local_weight: float,
+        neighbor_weight: float,
+        clip_threshold: float = 1.0,
+        **kwargs: Any,
+    ):
         super().__init__(**kwargs)
         self.clip_threshold = clip_threshold
         self.local_weight = local_weight
         self.neighbor_weight = neighbor_weight
 
-    def aggregate_models(self, neighbors_params_list):
+    def aggregate_models(
+        self, neighbors_params_list: List[Dict[str, torch.Tensor]]
+    ) -> None:
         """Aggregate model parameters from neighbors with clipping."""
         if not neighbors_params_list:
             return
 
-        if self.clip_threshold is None:
-            distances = [
-                (n - self.model.get_param_dict()) for n in neighbors_params_list
-            ]
-            if len(distances) >= 2:
-                self.clip_threshold = sorted(distances)[-2]
-            else:
-                self.clip_threshold = distances[-1]
-
+        local_params = self.model.get_param_dict()
         aggregated_params = {}
-        for param_name in neighbors_params_list[0].keys():
-            stacked_params = []
-            local_param = self.model.get_param_dict()[param_name]
-            for i in range(len(neighbors_params_list)):
-                neighbor_param = neighbors_params_list[i][param_name]
-                stacked_params.append(
-                    self.neighbor_weight
-                    * (
-                        clip(neighbor_param - local_param, self.clip_threshold)
-                        + local_param
-                    )
+
+        for param_name in local_params.keys():
+            local_param = local_params[param_name]
+            clipped_neighbors = [
+                self.neighbor_weight
+                * (
+                    clip(neighbor[param_name] - local_param, self.clip_threshold)
+                    + local_param
                 )
-            stacked_params.append(self.local_weight * local_param)
-            stacked_params = torch.stack(stacked_params)
-            aggregated_params[param_name] = torch.sum(stacked_params, dim=0)
+                for neighbor in neighbors_params_list
+            ]
+            clipped_neighbors.append(self.local_weight * local_param)
+            aggregated_params[param_name] = torch.sum(
+                torch.stack(clipped_neighbors), dim=0
+            )
 
         self.model.set_param_dict(aggregated_params)
