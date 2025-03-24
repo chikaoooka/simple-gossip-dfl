@@ -28,10 +28,12 @@ class DFL:
         self.round_comm_costs = []
         self.seed = seed
         random.seed(seed)
+        np.random.seed(seed)
+        
 
     def generate_network(self):
         """Generate a random network using Erdos-Renyi model."""
-        self.network = nx.erdos_renyi_graph(self.num_nodes, self.connectivity_prob)
+        self.network = nx.erdos_renyi_graph(self.num_nodes, self.connectivity_prob, seed=self.seed)
 
         # Ensure the graph is connected
         while not nx.is_connected(self.network):
@@ -79,7 +81,7 @@ class DFL:
     def visualize_network(self, save_path):
         """Visualize the network structure."""
         plt.figure(figsize=(10, 8))
-        pos = nx.spring_layout(self.network, seed=42)
+        pos = nx.spring_layout(self.network, seed=self.seed)
         nx.draw(
             self.network,
             pos,
