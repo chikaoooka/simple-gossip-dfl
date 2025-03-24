@@ -30,8 +30,11 @@ class DFL:
         random.seed(seed)
         np.random.seed(seed)
         
+    def get_max_degree(self) -> int:
+        """Get the maximum degree of the network."""
+        return max([self.network.degree(node) for node in self.network.nodes])
 
-    def generate_network(self):
+    def generate_network(self) -> nx.Graph:
         """Generate a random network using Erdos-Renyi model."""
         self.network = nx.erdos_renyi_graph(self.num_nodes, self.connectivity_prob, seed=self.seed)
 
@@ -66,7 +69,7 @@ class DFL:
             )
             self.nodes.append(node)
 
-    def evaluate_global_performance(self):
+    def evaluate_global_performance(self) -> tuple:
         """Evaluate the performance of all nodes on the test set."""
         test_losses = []
         test_accuracies = []
