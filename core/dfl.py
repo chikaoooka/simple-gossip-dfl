@@ -6,7 +6,7 @@ import os
 import json
 
 from core.utils import NumpyEncoder
-from core.node import Node
+from core.node import Node, ClippedGossipNode
 from models.cnn import SimpleCNN
 
 
